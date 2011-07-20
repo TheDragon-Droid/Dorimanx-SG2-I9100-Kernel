@@ -359,6 +359,33 @@ static void __init gic_dist_init(struct gic_chip_data *gic,
 		gic_irqs, (gic == &gic_data[0]) ? nrppis : 0);
 
 	/*
+	 * Nobody would be insane enough to use PPIs on a secondary
+	 * GIC, right?
+	 */
+	if (gic == &gic_data[0]) {
+		nrppis = (32 - irq_start) & 31;
+
+		/* The GIC only supports up to 16 PPIs. */
+		if (nrppis > 16)
+			BUG();
+
+		ppi_base = gic->irq_offset + 32 - nrppis;
+
+		ppi_irqaction = kmemdup(&ppi_irqaction_template[16 - nrppis],
+					sizeof(*ppi_irqaction) * nrppis,
+					GFP_KERNEL);
+
+		if (nrppis && !ppi_irqaction) {
+			pr_err("GIC: Can't allocate PPI memory");
+			nrppis = 0;
+			ppi_base = 0;
+		}
+	}
+
+	pr_info("Configuring GIC with %d sources (%d PPIs)\n",
+		gic_irqs, (gic == &gic_data[0]) ? nrppis : 0);
+
+	/*
 	 * Set all global interrupts to be level triggered, active low.
 	 */
 	for (i = 32; i < gic_irqs; i += 16)
