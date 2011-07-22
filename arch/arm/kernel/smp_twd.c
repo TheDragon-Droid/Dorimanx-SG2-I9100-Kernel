@@ -25,6 +25,7 @@
 #include <asm/smp_plat.h>
 #include <asm/smp_twd.h>
 #include <asm/localtimer.h>
+#include <asm/hardware/gic.h>
 
 /* set up by the platform code */
 static void __iomem *twd_base;
@@ -35,6 +36,8 @@ static DEFINE_PER_CPU(bool, percpu_setup_called);
 
 static struct clock_event_device __percpu **twd_evt;
 static int twd_ppi;
+
+static struct clock_event_device __percpu **twd_evt;
 
 static void twd_set_mode(enum clock_event_mode mode,
 			struct clock_event_device *clk)

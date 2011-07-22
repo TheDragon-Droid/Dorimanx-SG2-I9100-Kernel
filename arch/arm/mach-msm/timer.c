@@ -30,6 +30,7 @@
 
 #include "common.h"
 
+<<<<<<< HEAD
 #define TIMER_MATCH_VAL			0x0000
 #define TIMER_COUNT_VAL			0x0004
 #define TIMER_ENABLE			0x0008
@@ -39,11 +40,28 @@
 #define DGT_CLK_CTL			0x10
 #define DGT_CLK_CTL_DIV_4		0x3
 #define TIMER_STS_GPT0_CLR_PEND		BIT(10)
+=======
+struct msm_clock {
+	struct clock_event_device   clockevent;
+	struct clocksource          clocksource;
+	unsigned int		    irq;
+	void __iomem                *regbase;
+	uint32_t                    freq;
+	uint32_t                    shift;
+	void __iomem                *global_counter;
+	void __iomem                *local_counter;
+	union {
+		struct clock_event_device		*evt;
+		struct clock_event_device __percpu	**percpu_evt;
+	};		
+};
+>>>>>>> 28af690... ARM: gic, local timers: use the request_percpu_irq() interface
 
 #define GPT_HZ 32768
 
 #define MSM_DGT_SHIFT 5
 
+<<<<<<< HEAD
 static void __iomem *event_base;
 static void __iomem *sts_base;
 
@@ -56,6 +74,15 @@ static irqreturn_t msm_timer_interrupt(int irq, void *dev_id)
 		ctrl &= ~TIMER_ENABLE_EN;
 		writel_relaxed(ctrl, event_base + TIMER_ENABLE);
 	}
+=======
+static struct msm_clock msm_clocks[];
+
+static irqreturn_t msm_timer_interrupt(int irq, void *dev_id)
+{
+	struct clock_event_device *evt = *(struct clock_event_device **)dev_id;
+	if (evt->event_handler == NULL)
+		return IRQ_HANDLED;
+>>>>>>> 28af690... ARM: gic, local timers: use the request_percpu_irq() interface
 	evt->event_handler(evt);
 	return IRQ_HANDLED;
 }
@@ -110,6 +137,7 @@ static notrace cycle_t msm_read_timer_count(struct clocksource *cs)
 	return readl_relaxed(source_base + TIMER_COUNT_VAL);
 }
 
+<<<<<<< HEAD
 static notrace cycle_t msm_read_timer_count_shift(struct clocksource *cs)
 {
 	/*
@@ -153,6 +181,47 @@ static int msm_local_timer_setup(struct clock_event_device *evt)
 				IRQF_TRIGGER_RISING, "gp_timer", evt);
 		if (err)
 			pr_err("request_irq failed\n");
+=======
+static struct msm_clock msm_clocks[] = {
+	[MSM_CLOCK_GPT] = {
+		.clockevent = {
+			.name           = "gp_timer",
+			.features       = CLOCK_EVT_FEAT_ONESHOT,
+			.shift          = 32,
+			.rating         = 200,
+			.set_next_event = msm_timer_set_next_event,
+			.set_mode       = msm_timer_set_mode,
+		},
+		.clocksource = {
+			.name           = "gp_timer",
+			.rating         = 200,
+			.read           = msm_read_timer_count,
+			.mask           = CLOCKSOURCE_MASK(32),
+			.flags          = CLOCK_SOURCE_IS_CONTINUOUS,
+		},
+		.irq = INT_GP_TIMER_EXP,
+		.freq = GPT_HZ,
+	},
+	[MSM_CLOCK_DGT] = {
+		.clockevent = {
+			.name           = "dg_timer",
+			.features       = CLOCK_EVT_FEAT_ONESHOT,
+			.shift          = 32 + MSM_DGT_SHIFT,
+			.rating         = 300,
+			.set_next_event = msm_timer_set_next_event,
+			.set_mode       = msm_timer_set_mode,
+		},
+		.clocksource = {
+			.name           = "dg_timer",
+			.rating         = 300,
+			.read           = msm_read_timer_count,
+			.mask           = CLOCKSOURCE_MASK((32 - MSM_DGT_SHIFT)),
+			.flags          = CLOCK_SOURCE_IS_CONTINUOUS,
+		},
+		.irq = INT_DEBUG_TIMER_EXP,
+		.freq = DGT_HZ >> MSM_DGT_SHIFT,
+		.shift = MSM_DGT_SHIFT,
+>>>>>>> 28af690... ARM: gic, local timers: use the request_percpu_irq() interface
 	}
 
 	return 0;
@@ -207,6 +276,7 @@ static void __init msm_timer_init(u32 dgt_hz, int sched_bits, int irq,
 		goto err;
 	}
 
+<<<<<<< HEAD
 	if (percpu)
 		res = request_percpu_irq(irq, msm_timer_interrupt,
 					 "gp_timer", msm_evt);
@@ -222,6 +292,59 @@ static void __init msm_timer_init(u32 dgt_hz, int sched_bits, int irq,
 
 		/* Immediately configure the timer on the boot CPU */
 		msm_local_timer_setup(__this_cpu_ptr(msm_evt));
+=======
+	for (i = 0; i < ARRAY_SIZE(msm_clocks); i++) {
+		struct msm_clock *clock = &msm_clocks[i];
+		struct clock_event_device *ce = &clock->clockevent;
+		struct clocksource *cs = &clock->clocksource;
+
+		clock->local_counter = clock->regbase + TIMER_COUNT_VAL;
+		clock->global_counter = clock->local_counter + global_offset;
+
+		writel(0, clock->regbase + TIMER_ENABLE);
+		writel(0, clock->regbase + TIMER_CLEAR);
+		writel(~0, clock->regbase + TIMER_MATCH_VAL);
+
+		ce->mult = div_sc(clock->freq, NSEC_PER_SEC, ce->shift);
+		/* allow at least 10 seconds to notice that the timer wrapped */
+		ce->max_delta_ns =
+			clockevent_delta2ns(0xf0000000 >> clock->shift, ce);
+		/* 4 gets rounded down to 3 */
+		ce->min_delta_ns = clockevent_delta2ns(4, ce);
+		ce->cpumask = cpumask_of(0);
+
+		res = clocksource_register_hz(cs, clock->freq);
+		if (res)
+			printk(KERN_ERR "msm_timer_init: clocksource_register "
+			       "failed for %s\n", cs->name);
+
+		ce->irq = clock->irq;
+		if (cpu_is_msm8x60() || cpu_is_msm8960()) {
+			clock->percpu_evt = alloc_percpu(struct clock_event_device *);
+			if (!clock->percpu_evt) {
+				pr_err("msm_timer_init: memory allocation "
+				       "failed for %s\n", ce->name);
+				continue;
+			}
+
+			*__this_cpu_ptr(clock->percpu_evt) = ce;
+			res = request_percpu_irq(ce->irq, msm_timer_interrupt,
+						 ce->name, clock->percpu_evt);
+			if (!res)
+				enable_percpu_irq(ce->irq, 0);
+		} else {
+			clock->evt = ce;
+			res = request_irq(ce->irq, msm_timer_interrupt,
+					  IRQF_TIMER | IRQF_NOBALANCING | IRQF_TRIGGER_RISING,
+					  ce->name, &clock->evt);
+		}
+
+		if (res)
+			pr_err("msm_timer_init: request_irq failed for %s\n",
+			       ce->name);
+
+		clockevents_register_device(ce);
+>>>>>>> 28af690... ARM: gic, local timers: use the request_percpu_irq() interface
 	}
 
 err:
@@ -235,6 +358,7 @@ err:
 #ifdef CONFIG_OF
 static void __init msm_dt_timer_init(struct device_node *np)
 {
+<<<<<<< HEAD
 	u32 freq;
 	int irq;
 	struct resource res;
@@ -247,6 +371,10 @@ static void __init msm_dt_timer_init(struct device_node *np)
 		pr_err("Failed to map event base\n");
 		return;
 	}
+=======
+	static bool local_timer_inited;
+	struct msm_clock *clock = &msm_clocks[MSM_GLOBAL_TIMER];
+>>>>>>> 28af690... ARM: gic, local timers: use the request_percpu_irq() interface
 
 	/* We use GPT0 for the clockevent */
 	irq = irq_of_parse_and_map(np, 1);
@@ -259,6 +387,7 @@ static void __init msm_dt_timer_init(struct device_node *np)
 	if (of_property_read_u32(np, "cpu-offset", &percpu_offset))
 		percpu_offset = 0;
 
+<<<<<<< HEAD
 	if (of_address_to_resource(np, 0, &res)) {
 		pr_err("Failed to parse DGT resource\n");
 		return;
@@ -302,10 +431,33 @@ static int __init msm_timer_map(phys_addr_t addr, u32 event, u32 source,
 	source_base = base + source;
 	if (sts)
 		sts_base = base + sts;
+=======
+	if (!local_timer_inited) {
+		writel(0, clock->regbase  + TIMER_ENABLE);
+		writel(0, clock->regbase + TIMER_CLEAR);
+		writel(~0, clock->regbase + TIMER_MATCH_VAL);
+		local_timer_inited = true;
+	}
+	evt->irq = clock->irq;
+	evt->name = "local_timer";
+	evt->features = CLOCK_EVT_FEAT_ONESHOT;
+	evt->rating = clock->clockevent.rating;
+	evt->set_mode = msm_timer_set_mode;
+	evt->set_next_event = msm_timer_set_next_event;
+	evt->shift = clock->clockevent.shift;
+	evt->mult = div_sc(clock->freq, NSEC_PER_SEC, evt->shift);
+	evt->max_delta_ns =
+		clockevent_delta2ns(0xf0000000 >> clock->shift, evt);
+	evt->min_delta_ns = clockevent_delta2ns(4, evt);
+
+	*__this_cpu_ptr(clock->percpu_evt) = evt;
+	enable_percpu_irq(evt->irq, 0);
+>>>>>>> 28af690... ARM: gic, local timers: use the request_percpu_irq() interface
 
 	return 0;
 }
 
+<<<<<<< HEAD
 void __init msm7x01_timer_init(void)
 {
 	struct clocksource *cs = &msm_clocksource;
@@ -317,6 +469,12 @@ void __init msm7x01_timer_init(void)
 	/* 600 KHz */
 	msm_timer_init(19200000 >> MSM_DGT_SHIFT, 32 - MSM_DGT_SHIFT, 7,
 			false);
+=======
+void local_timer_stop(struct clock_event_device *evt)
+{
+	evt->set_mode(CLOCK_EVT_MODE_UNUSED, evt);
+	disable_percpu_irq(evt->irq);
+>>>>>>> 28af690... ARM: gic, local timers: use the request_percpu_irq() interface
 }
 
 void __init msm7x30_timer_init(void)
