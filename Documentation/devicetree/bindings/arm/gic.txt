@@ -49,6 +49,10 @@ Optional
   regions, used when the GIC doesn't have banked registers. The offset is
   cpu-offset * cpu-nr.
 
+- cpu-offset	: per-cpu offset within the distributor and cpu interface
+  regions, used when the GIC doesn't have banked registers. The offset is
+  cpu-offset * cpu-nr.
+
 Example:
 
 	intc: interrupt-controller@fff11000 {
