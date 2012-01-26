@@ -136,6 +136,21 @@ static int megamod_map(struct irq_domain *h, unsigned int virq,
 	return 0;
 }
 
+<<<<<<< HEAD
+=======
+static int megamod_xlate(struct irq_domain *h, struct device_node *ct,
+			 const u32 *intspec, unsigned int intsize,
+			 irq_hw_number_t *out_hwirq, unsigned int *out_type)
+
+{
+	/* megamod intspecs must have 1 cell */
+	BUG_ON(intsize != 1);
+	*out_hwirq = intspec[0];
+	*out_type = IRQ_TYPE_NONE;
+	return 0;
+}
+
+>>>>>>> 15a2598... irq_domain/c6x: constify irq_domain structures
 static const struct irq_domain_ops megamod_domain_ops = {
 	.map	= megamod_map,
 	.xlate	= irq_domain_xlate_onecell,
