@@ -644,10 +644,10 @@ void gic_raise_softirq(const struct cpumask *mask, unsigned int irq)
 #endif
 
 #ifdef CONFIG_OF
-static int gic_irq_domain_dt_translate(struct irq_domain *d,
-				       struct device_node *controller,
-				       const u32 *intspec, unsigned int intsize,
-				       unsigned long *out_hwirq, unsigned int *out_type)
+static int gic_irq_domain_xlate(struct irq_domain *d,
+				struct device_node *controller,
+				const u32 *intspec, unsigned int intsize,
+				unsigned long *out_hwirq, unsigned int *out_type)
 {
 	if (d->of_node != controller)
 		return -EINVAL;
@@ -666,9 +666,9 @@ static int gic_irq_domain_dt_translate(struct irq_domain *d,
 }
 #endif
 
-const struct irq_domain_ops gic_irq_domain_ops = {
+struct irq_domain_ops gic_irq_domain_ops = {
 #ifdef CONFIG_OF
-	.dt_translate = gic_irq_domain_dt_translate,
+	.xlate = gic_irq_domain_xlate,
 #endif
 };
 
@@ -747,7 +747,7 @@ void __init gic_init_bases(unsigned int gic_nr, int irq_start,
 		     irq_start);
 		domain->irq_base = irq_start;
 	}
-	domain->priv = gic;
+	domain->host_data = gic;
 	domain->ops = &gic_irq_domain_ops;
 	irq_domain_add(domain);
 
