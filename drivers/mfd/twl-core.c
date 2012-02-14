@@ -254,7 +254,6 @@ struct twl_client {
 
 static struct twl_client twl_modules[TWL_NUM_SLAVES];
 
-
 /* mapping the module id to slave id and base address */
 struct twl_mapping {
 	unsigned char sid;	/* Slave ID */

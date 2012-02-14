@@ -50,6 +50,7 @@ struct vic_device {
 	u32		int_enable;
 	u32		soft_int;
 	u32		protect;
+	struct irq_domain *domain;
 };
 
 /* we cannot allocate memory when VICs are initially registered */
@@ -180,6 +181,14 @@ static void __init vic_pm_register(void __iomem *base, unsigned int irq, u32 res
 		v->irq = irq;
 		vic_id++;
 	}
+
+	v = &vic_devices[vic_id];
+	v->base = base;
+	v->resume_sources = resume_sources;
+	v->irq = irq;
+	vic_id++;
+	v->domain = irq_domain_add_legacy(node, 32, irq, 0,
+					  &irq_domain_simple_ops, v);
 }
 #else
 static inline void vic_pm_register(void __iomem *base, unsigned int irq, u32 arg1) { }
@@ -331,15 +340,9 @@ static void __init vic_init_st(void __iomem *base, unsigned int irq_start,
 	vic_set_irq_sources(base, irq_start, vic_sources);
 }
 
-/**
- * vic_init - initialise a vectored interrupt controller
- * @base: iomem base address
- * @irq_start: starting interrupt number, must be muliple of 32
- * @vic_sources: bitmask of interrupt sources to allow
- * @resume_sources: bitmask of interrupt sources to allow for resume
- */
-void __init vic_init(void __iomem *base, unsigned int irq_start,
-		     u32 vic_sources, u32 resume_sources)
+void __init __vic_init(void __iomem *base, unsigned int irq_start,
+			      u32 vic_sources, u32 resume_sources,
+			      struct device_node *node)
 {
 	unsigned int i;
 	u32 cellid = 0;
@@ -375,5 +378,81 @@ void __init vic_init(void __iomem *base, unsigned int irq_start,
 
 	vic_set_irq_sources(base, irq_start, vic_sources);
 
-	vic_pm_register(base, irq_start, resume_sources);
+	vic_register(base, irq_start, resume_sources, node);
+}
+
+/**
+ * vic_init() - initialise a vectored interrupt controller
+ * @base: iomem base address
+ * @irq_start: starting interrupt number, must be muliple of 32
+ * @vic_sources: bitmask of interrupt sources to allow
+ * @resume_sources: bitmask of interrupt sources to allow for resume
+ */
+void __init vic_init(void __iomem *base, unsigned int irq_start,
+		     u32 vic_sources, u32 resume_sources)
+{
+	__vic_init(base, irq_start, vic_sources, resume_sources, NULL);
+}
+
+#ifdef CONFIG_OF
+int __init vic_of_init(struct device_node *node, struct device_node *parent)
+{
+	void __iomem *regs;
+	int irq_base;
+
+	if (WARN(parent, "non-root VICs are not supported"))
+		return -EINVAL;
+
+	regs = of_iomap(node, 0);
+	if (WARN_ON(!regs))
+		return -EIO;
+
+	irq_base = irq_alloc_descs(-1, 0, 32, numa_node_id());
+	if (WARN_ON(irq_base < 0))
+		goto out_unmap;
+
+	__vic_init(regs, irq_base, ~0, ~0, node);
+
+	return 0;
+
+ out_unmap:
+	iounmap(regs);
+
+	return -EIO;
+}
+#endif /* CONFIG OF */
+
+/*
+ * Handle each interrupt in a single VIC.  Returns non-zero if we've
+ * handled at least one interrupt.  This does a single read of the
+ * status register and handles all interrupts in order from LSB first.
+ */
+static int handle_one_vic(struct vic_device *vic, struct pt_regs *regs)
+{
+	u32 stat, irq;
+	int handled = 0;
+
+	stat = readl_relaxed(vic->base + VIC_IRQ_STATUS);
+	while (stat) {
+		irq = ffs(stat) - 1;
+		handle_IRQ(irq_find_mapping(vic->domain, irq), regs);
+		stat &= ~(1 << irq);
+		handled = 1;
+	}
+
+	return handled;
+}
+
+/*
+ * Keep iterating over all registered VIC's until there are no pending
+ * interrupts.
+ */
+asmlinkage void __exception_irq_entry vic_handle_irq(struct pt_regs *regs)
+{
+	int i, handled;
+
+	do {
+		for (i = 0, handled = 0; i < vic_id; ++i)
+			handled |= handle_one_vic(&vic_devices[i], regs);
+	} while (handled);
 }
