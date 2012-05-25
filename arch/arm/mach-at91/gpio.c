@@ -25,6 +25,8 @@
 #include <linux/irqchip/chained_irq.h>
 #include <linux/of_address.h>
 
+#include <asm/mach/irq.h>
+
 #include <mach/hardware.h>
 #include <mach/at91_pio.h>
 
