@@ -48,12 +48,6 @@ struct _cpu_boot_info {
 struct _cpu_boot_info cpu_boot_info[NR_CPUS];
 
 /*
- * control for which core is the next to come out of the secondary
- * boot "holding pen"
- */
-volatile int pen_release = -1;
-
-/*
  * Write pen_release in a way that is guaranteed to be visible to all
  * observers, irrespective of whether they're taking part in coherency
  * or not.  This is necessary for the hotplug code to work reliably.
@@ -76,7 +70,7 @@ static void __iomem *scu_base_addr(void)
 
 static DEFINE_SPINLOCK(boot_lock);
 
-void __cpuinit platform_secondary_init(unsigned int cpu)
+static void __cpuinit exynos_secondary_init(unsigned int cpu)
 {
 	void __iomem *dist_base = S5P_VA_GIC_DIST +
 				 (gic_bank_offset * cpu);
@@ -138,7 +132,7 @@ static int exynos_power_up_cpu(unsigned int cpu)
 	return 0;
 }
 
-int __cpuinit boot_secondary(unsigned int cpu, struct task_struct *idle)
+static int __cpuinit exynos_boot_secondary(unsigned int cpu, struct task_struct *idle)
 {
 	unsigned long timeout;
 	int ret;
@@ -230,7 +224,7 @@ static inline unsigned long exynos5_get_core_count(void)
  * Initialise the CPU possible map early - this describes the CPUs
  * which may be present or become present in the system.
  */
-void __init smp_init_cpus(void)
+static void __init exynos_smp_init_cpus(void)
 {
 	unsigned int i, ncores;
 
@@ -254,7 +248,7 @@ void __init smp_init_cpus(void)
 	set_smp_cross_call(gic_raise_softirq);
 }
 
-void __init platform_smp_prepare_cpus(unsigned int max_cpus)
+static void __init exynos_smp_prepare_cpus(unsigned int max_cpus)
 {
 	int i;
 
@@ -278,3 +272,13 @@ void __init platform_smp_prepare_cpus(unsigned int max_cpus)
 		cpu_boot_info[i].power_base = S5P_ARM_CORE_CONFIGURATION(i);
 	}
 }
+
+struct smp_operations exynos_smp_ops __initdata = {
+	.smp_init_cpus    = exynos_smp_init_cpus,
+	.smp_prepare_cpus  = exynos_smp_prepare_cpus,
+	.smp_secondary_init  = exynos_secondary_init,
+	.smp_boot_secondary  = exynos_boot_secondary,
+#ifdef CONFIG_HOTPLUG_CPU
+	.cpu_die    = exynos_cpu_die,
+#endif
+};

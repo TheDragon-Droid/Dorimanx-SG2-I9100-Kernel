@@ -14,7 +14,11 @@
 
 #include <asm/smp_plat.h>
 
+<<<<<<< HEAD
 #include "setup.h"
+=======
+#include <mach/setup.h>
+>>>>>>> 28e8e29... ARM: consolidate pen_release instead of having per platform definitions
 
 /*
  * platform-specific code to shutdown a CPU

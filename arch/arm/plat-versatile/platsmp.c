@@ -17,6 +17,10 @@
 
 #include <asm/cacheflush.h>
 #include <asm/smp_plat.h>
+<<<<<<< HEAD
+=======
+#include <asm/hardware/gic.h>
+>>>>>>> 28e8e29... ARM: consolidate pen_release instead of having per platform definitions
 
 /*
  * Write pen_release in a way that is guaranteed to be visible to all

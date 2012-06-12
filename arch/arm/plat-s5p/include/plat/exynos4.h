@@ -20,6 +20,7 @@ extern void exynos4_setup_clocks(void);
 
 #if defined(CONFIG_CPU_EXYNOS4210) || defined(CONFIG_CPU_EXYNOS4212)
 
+struct map_desc;
 extern  int exynos4_init(void);
 extern void exynos4_init_irq(void);
 extern void exynos4_map_io(void);
@@ -46,3 +47,7 @@ extern void exynos4212_register_clocks(void);
 #else
 #define exynos4212_register_clocks() do { } while(0)
 #endif
+
+extern struct smp_operations exynos_smp_ops;
+
+extern void exynos_cpu_die(unsigned int cpu);

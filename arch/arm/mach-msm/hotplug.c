@@ -12,7 +12,11 @@
 
 #include <asm/smp_plat.h>
 
+<<<<<<< HEAD
 #include "common.h"
+=======
+#include "core.h"
+>>>>>>> 28e8e29... ARM: consolidate pen_release instead of having per platform definitions
 
 static inline void cpu_enter_lowpower(void)
 {
