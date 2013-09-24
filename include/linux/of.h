@@ -87,6 +87,11 @@ extern struct device_node *of_chosen;
 extern struct device_node *of_aliases;
 extern raw_spinlock_t devtree_lock;
 
+static inline const char* of_node_full_name(struct device_node *np)
+{
+	return "<no-node>";
+}
+
 static inline bool of_have_populated_dt(void)
 {
 	return of_allnodes != NULL;
@@ -513,6 +518,11 @@ static inline int of_node_to_nid(struct device_node *np)
 
 #define of_node_to_nid of_node_to_nid
 #endif
+
+static inline const char* of_node_full_name(struct device_node *np)
+{
+	return np ? np->full_name : "<no-node>";
+}
 
 /**
  * of_property_read_bool - Findfrom a property
