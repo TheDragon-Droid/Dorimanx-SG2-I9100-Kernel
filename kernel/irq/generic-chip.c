@@ -157,12 +157,13 @@ void irq_gc_mask_disable_reg_and_ack(struct irq_data *d)
 void irq_gc_mask_and_ack_set(struct irq_data *d)
 {
 	struct irq_chip_generic *gc = irq_data_get_irq_chip_data(d);
+	struct irq_chip_type *ct = irq_data_get_chip_type(d);
 	u32 mask = 1 << (d->irq - gc->irq_base);
 
 	irq_gc_lock(gc);
 	gc->mask_cache |= mask;
-	irq_reg_writel(gc->mask_cache, gc->reg_base + cur_regs(d)->mask);
-	irq_reg_writel(mask, gc->reg_base + cur_regs(d)->ack);
+	irq_reg_writel(gc->mask_cache, gc->reg_base + ct->regs.mask);
+	irq_reg_writel(mask, gc->reg_base + ct->regs.ack);
 	irq_gc_unlock(gc);
 }
 
@@ -274,6 +275,7 @@ irq_gc_init_mask_cache(struct irq_chip_generic *gc, enum irq_gc_flags flags)
  * @handler:		Default flow handler associated with these chips
  * @clr:		IRQ_* bits to clear in the mapping function
  * @set:		IRQ_* bits to set in the mapping function
+ * @gcflags:		Generic chip specific setup flags
  */
 int irq_alloc_domain_generic_chips(struct irq_domain *d, int irqs_per_chip,
 				   int num_ct, const char *name,
@@ -290,7 +292,7 @@ int irq_alloc_domain_generic_chips(struct irq_domain *d, int irqs_per_chip,
 	if (d->gc)
 		return -EBUSY;
 
-	numchips = DIV_ROUND_UP(d->revmap_data.linear.size, irqs_per_chip);
+	numchips = DIV_ROUND_UP(d->revmap_size, irqs_per_chip);
 	if (!numchips)
 		return -EINVAL;
 
