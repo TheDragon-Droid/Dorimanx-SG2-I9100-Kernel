@@ -31,7 +31,6 @@
 		addeq	\tmp, \tmp, \tmp
 		addne	\tmp, \tmp, \tmp, LSL #1
 #endif
-1:		ldr	\base, =gic_cpu_base_addr
 		ldr	\base, [\base]
 
 #ifdef CONFIG_ARCH_EXYNOS4
