@@ -171,7 +171,6 @@ static int __cpuinit exynos_boot_secondary(unsigned int cpu, struct task_struct 
 	 * the boot monitor to read the system wide flags register,
 	 * and branch to the address found there.
 	 */
-	gic_raise_softirq(cpumask_of(cpu), 1);
 
 	timeout = jiffies + (1 * HZ);
 	while (time_before(jiffies, timeout)) {
@@ -179,6 +178,7 @@ static int __cpuinit exynos_boot_secondary(unsigned int cpu, struct task_struct 
 
 		__raw_writel(BSYM(virt_to_phys(exynos_secondary_startup)),
 			cpu_boot_info[cpu].boot_base);
+		arch_send_wakeup_ipi_mask(cpumask_of(cpu));
 
 #ifdef CONFIG_ARM_TRUSTZONE
 		if (soc_is_exynos4412())
@@ -244,8 +244,6 @@ static void __init exynos_smp_init_cpus(void)
 
 	for (i = 0; i < ncores; i++)
 		set_cpu_possible(i, true);
-
-	set_smp_cross_call(gic_raise_softirq);
 }
 
 static void __init exynos_smp_prepare_cpus(unsigned int max_cpus)
