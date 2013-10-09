@@ -177,6 +177,8 @@ int __cpuinit boot_secondary(unsigned int cpu, struct task_struct *idle)
 	 * the boot monitor to read the system wide flags register,
 	 * and branch to the address found there.
 	 */
+	gic_raise_softirq(cpumask_of(cpu), 1);
+
 	timeout = jiffies + (1 * HZ);
 	while (time_before(jiffies, timeout)) {
 		smp_rmb();
@@ -248,25 +250,20 @@ void __init smp_init_cpus(void)
 
 	for (i = 0; i < ncores; i++)
 		set_cpu_possible(i, true);
+
+	set_smp_cross_call(gic_raise_softirq);
 }
 
 void __init platform_smp_prepare_cpus(unsigned int max_cpus)
 {
 	int i;
 
-	/*
-	 * Initialise the present map, which describes the set of CPUs
-	 * actually populated at the present time.
-	 */
-	for (i = 0; i < max_cpus; i++)
-		set_cpu_present(i, true);
-
 	if (scu_base_addr())
 		scu_enable(scu_base_addr());
 	else
 		flush_cache_all();
 
-	/* Set up secondary boot base and core power cofiguration base address */
+	/* Set up secondary boot base and core power configuration base address */
 	for (i = 1; i < max_cpus; i++) {
 #ifdef CONFIG_ARM_TRUSTZONE
 		cpu_boot_info[i].boot_base = S5P_VA_SYSRAM_NS + 0x1C;
